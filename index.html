@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>دفتر الديون</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#eef1f4" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f1822" media="(prefers-color-scheme: dark)">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="الديون">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+:root{
+  --bg:#eef1f4; --surface:#ffffff; --ink:#14263a; --muted:#63748a; --line:#d9e0e7;
+  --owed:#0d7a5f; --owed-bg:#e1f4ee; --owe:#c2412d; --owe-bg:#fbe9e5;
+  --btn:#14263a; --btn-ink:#ffffff; --field:#f6f8fa;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#0f1822; --surface:#182533; --ink:#e8eef4; --muted:#8fa2b6; --line:#2a3a4b;
+    --owed:#4cd1a8; --owed-bg:#143329; --owe:#ff8a76; --owe-bg:#3a1f1a;
+    --btn:#e8eef4; --btn-ink:#0f1822; --field:#112030;
+    color-scheme:dark;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Segoe UI",Tahoma,"Noto Naskh Arabic",system-ui,sans-serif;line-height:1.6;padding:16px}
+.wrap{max-width:640px;margin:0 auto}
+h1{font-size:26px;margin:8px 0 16px;font-weight:800}
+.summary{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.sum{border-radius:14px;padding:14px 16px}
+.sum small{display:block;font-size:13px;opacity:.85}
+.sum b{font-size:24px;font-weight:800}
+.sum.owed{background:var(--owed-bg);color:var(--owed)}
+.sum.owe{background:var(--owe-bg);color:var(--owe)}
+.net{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 16px;margin-bottom:18px;display:flex;justify-content:space-between;align-items:center;font-size:15px}
+.net b{font-size:18px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:18px}
+.panel h2{font-size:17px;margin:0 0 12px}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px}
+.seg label{display:block;text-align:center;padding:9px 6px;border:1.5px solid var(--line);border-radius:10px;cursor:pointer;font-size:14px}
+.seg input{position:absolute;opacity:0;pointer-events:none}
+.seg input:checked + span{font-weight:700}
+.seg label:has(input:checked){border-color:var(--ink);background:var(--field)}
+.seg label:has(input:focus-visible){outline:2px solid var(--ink);outline-offset:2px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+input[type=text],input[type=number],input[type=date]{width:100%;padding:11px 12px;border:1.5px solid var(--line);border-radius:10px;background:var(--field);color:var(--ink);font:inherit;font-size:16px}
+input:focus-visible,button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+button{font:inherit;cursor:pointer;border:0;border-radius:10px;padding:11px 16px;font-weight:700}
+.primary{background:var(--btn);color:var(--btn-ink);width:100%;margin-top:4px}
+.tabs{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+.tab{background:transparent;border:1.5px solid var(--line);color:var(--muted);padding:7px 14px;font-weight:600;font-size:14px}
+.tab[aria-pressed=true]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.debt{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:10px;border-inline-start:5px solid var(--owed)}
+.debt.owe{border-inline-start-color:var(--owe)}
+.debt.done{opacity:.6}
+.top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.name{font-weight:800;font-size:18px}
+.meta{color:var(--muted);font-size:13px}
+.left{text-align:left}
+.left b{font-size:20px;font-weight:800;display:block;direction:ltr}
+.debt:not(.owe) .left b{color:var(--owed)}
+.debt.owe .left b{color:var(--owe)}
+.left small{color:var(--muted);font-size:12px}
+.bar{height:6px;background:var(--line);border-radius:6px;margin:10px 0;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--owed)}
+.debt.owe .bar i{background:var(--owe)}
+.acts{display:flex;gap:8px;flex-wrap:wrap}
+.acts button{padding:7px 12px;font-size:14px;background:var(--field);color:var(--ink);border:1px solid var(--line)}
+.acts .pay{background:var(--btn);color:var(--btn-ink);border-color:var(--btn)}
+.acts .del{margin-inline-start:auto;color:var(--owe)}
+.payform{display:flex;gap:8px;margin-top:10px}
+.payform input{flex:1}
+.payform button{background:var(--btn);color:var(--btn-ink);white-space:nowrap}
+.hist{margin:10px 0 0;padding:0;list-style:none;font-size:14px;border-top:1px dashed var(--line)}
+.hist li{display:flex;justify-content:space-between;padding:6px 0;color:var(--muted)}
+.empty{text-align:center;color:var(--muted);padding:28px 10px;border:1.5px dashed var(--line);border-radius:14px}
+.cur{display:flex;align-items:center;gap:8px;justify-content:center;margin-top:18px;color:var(--muted);font-size:13px}
+.cur input{width:80px;padding:6px 8px;font-size:14px;text-align:center}
+.toast{position:fixed;bottom:18px;inset-inline:0;margin:auto;width:max-content;max-width:90%;background:var(--ink);color:var(--bg);padding:10px 18px;border-radius:10px;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.show{opacity:1}
+.tabs[hidden]{display:none}
+.mini{background:var(--field);color:var(--ink);border:1px solid var(--line);padding:7px 12px;font-size:13px;font-weight:600}
+.search{width:100%;padding:11px 12px;border:1.5px solid var(--line);border-radius:10px;background:var(--field);color:var(--ink);font:inherit;font-size:16px;margin-bottom:12px}
+.search:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.left b.rt{direction:rtl}
+dialog{border:1px solid var(--line);border-radius:16px;background:var(--surface);color:var(--ink);padding:0;width:min(560px,94vw);max-height:90vh;overflow:auto}
+dialog::backdrop{background:rgba(10,20,30,.55)}
+.st-in{padding:18px}
+.st-in h2{margin:0 0 2px;font-size:20px}
+.st-sum{margin:12px 0;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.st-sum div{display:flex;justify-content:space-between;gap:10px;padding:8px 12px;border-bottom:1px solid var(--line);font-size:14px}
+.st-sum div:last-child{border-bottom:0;font-weight:800;background:var(--field)}
+.tw{overflow-x:auto}
+table.st{width:100%;border-collapse:collapse;font-size:13px}
+.st th{background:var(--field);text-align:right;padding:8px 6px;font-weight:700;border-bottom:1px solid var(--line);white-space:nowrap}
+.st td{padding:8px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+.st td small{display:block;color:var(--muted);font-size:11px}
+.st .n{white-space:nowrap}
+.st-acts{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+.st-acts button{flex:1;background:var(--field);color:var(--ink);border:1px solid var(--line)}
+.st-acts .main{background:var(--btn);color:var(--btn-ink);border-color:var(--btn)}
+.st-msg{font-size:13px;color:var(--muted);min-height:20px;margin-top:8px}
+@media print{
+  :root{--bg:#fff;--surface:#fff;--ink:#000;--muted:#444;--line:#999;--field:#eee}
+  body{padding:0;background:#fff}
+  .wrap,.toast{display:none}
+  dialog{position:static;width:100%;max-height:none;border:0;overflow:visible}
+  .st-acts,.st-msg{display:none}
+}
+.st-acts button{flex:1 1 40%}
+.st-acts .wa{background:#1f9d55;color:#fff;border-color:#1f9d55}
+.phone{margin-top:14px}
+.phone label{display:block;font-size:13px;color:var(--muted);margin-bottom:4px}
+.phone input{direction:ltr;text-align:right}
+.sheet{position:absolute;left:-10000px;top:0;width:794px;padding:36px 40px;background:#fff;color:#14263a;direction:rtl;font-family:"Segoe UI",Tahoma,"Noto Naskh Arabic",system-ui,sans-serif;--ink:#14263a;--muted:#5b6b7e;--line:#cfd8e0;--field:#f1f4f7;--surface:#fff}
+.sheet .st-in{padding:0}
+.sheet .st-in h2{font-size:24px}
+.sheet table.st{font-size:14px}
+.sheet .meta{color:#5b6b7e}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>دفتر الديون</h1>
+
+  <div class="summary">
+    <div class="sum owed"><small>ليّ عند الناس</small><b id="sumOwed">0</b></div>
+    <div class="sum owe"><small>عليّ للناس</small><b id="sumOwe">0</b></div>
+  </div>
+  <div class="net"><span>الصافي</span><b id="net">0</b></div>
+
+  <div class="panel">
+    <h2>إضافة فاتورة أو دين</h2>
+    <div class="seg">
+      <label><input type="radio" name="dir" value="owed" checked><span>فاتورة جديدة</span></label>
+      <label><input type="radio" name="dir" value="owe"><span>أنا استلفت</span></label>
+    </div>
+    <div class="row">
+      <input type="text" id="name" placeholder="الاسم" autocomplete="off">
+      <input type="number" id="amount" placeholder="المبلغ" inputmode="decimal" min="0" step="any">
+    </div>
+    <div class="row">
+      <input type="text" id="note" placeholder="ملاحظة (اختياري)" autocomplete="off">
+      <input type="date" id="date">
+    </div>
+    <div style="margin-bottom:10px">
+      <input type="text" id="phone" placeholder="رقم واتساب العميل (اختياري)" inputmode="tel" dir="ltr" autocomplete="off" style="text-align:right">
+    </div>
+    <button class="primary" id="add">إضافة</button>
+  </div>
+
+  <div class="tabs" id="views" role="group" aria-label="طريقة العرض">
+    <button class="tab" data-v="debts" aria-pressed="true">الديون</button>
+    <button class="tab" data-v="customers" aria-pressed="false">العملاء</button>
+  </div>
+
+  <input type="search" class="search" id="q" placeholder="ابحث باسم العميل أو الملاحظة" autocomplete="off" aria-label="بحث">
+
+  <div class="tabs" id="tabs" role="group" aria-label="تصفية">
+    <button class="tab" data-f="all" aria-pressed="true">الكل</button>
+    <button class="tab" data-f="owed" aria-pressed="false">ليّ</button>
+    <button class="tab" data-f="owe" aria-pressed="false">عليّ</button>
+    <button class="tab" data-f="done" aria-pressed="false">اتسدد</button>
+  </div>
+
+  <div id="list"></div>
+
+  <div class="cur"><label for="cur">العملة</label><input type="text" id="cur" value="ج.م"><label for="cc">كود الدولة</label><input type="text" id="cc" value="20" inputmode="numeric" dir="ltr"></div>
+  <div class="cur">
+    <button class="mini" id="bkExport">حفظ نسخة احتياطية</button>
+    <button class="mini" id="bkImport">استرجاع نسخة</button>
+    <input type="file" id="bkFile" accept="application/json,.json" hidden>
+  </div>
+</div>
+<dialog id="stDlg" aria-label="كشف حساب"><div class="st-in" id="stBody"></div></dialog>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+let debts = [];
+let currency = "ج.م";
+let countryCode = "20";
+let filter = "all";
+let openPay = null;
+let openHist = null;
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt = n => Number(n).toLocaleString('en-US', {maximumFractionDigits:2}) + ' ' + currency;
+const paid = d => d.payments.reduce((s,p) => s + p.amount, 0);
+const left = d => Math.max(0, +(d.amount - paid(d)).toFixed(2));
+const today = () => new Date().toISOString().slice(0,10);
+
+const STORE_KEY = 'debts-book';
+async function storeSet(v){
+  if (window.storage){ try { await window.storage.set(STORE_KEY, v); return; } catch(e){} }
+  try { localStorage.setItem(STORE_KEY, v); } catch(e){}
+}
+async function storeGet(){
+  if (window.storage){ try { const r = await window.storage.get(STORE_KEY); if (r && r.value) return r.value; } catch(e){} }
+  try { return localStorage.getItem(STORE_KEY); } catch(e){ return null; }
+}
+async function save(){ await storeSet(JSON.stringify({debts, currency, countryCode})); }
+async function load(){
+  try {
+    const v = await storeGet();
+    if (v){ const o = JSON.parse(v); debts = o.debts || []; currency = o.currency || currency; countryCode = o.countryCode || countryCode; }
+  } catch(e){ /* nothing saved yet */ }
+  $('cur').value = currency;
+  $('cc').value = countryCode;
+  render();
+}
+
+function toast(msg){
+  const t = $('toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), 1800);
+}
+
+function render(){
+  const owed = debts.filter(d => d.dir === 'owed').reduce((s,d) => s + left(d), 0);
+  const owe  = debts.filter(d => d.dir === 'owe').reduce((s,d) => s + left(d), 0);
+  $('sumOwed').textContent = fmt(owed);
+  $('sumOwe').textContent = fmt(owe);
+  const net = owed - owe;
+  $('net').textContent = (net > 0 ? '+' : net < 0 ? '−' : '') + fmt(Math.abs(net));
+  $('net').style.color = net > 0 ? 'var(--owed)' : net < 0 ? 'var(--owe)' : 'inherit';
+
+  $('tabs').hidden = view === 'customers';
+  if (view === 'customers'){ renderCustomers(); return; }
+  let items = debts.filter(matchDebt).reverse();
+  if (filter === 'owed') items = items.filter(d => d.dir === 'owed' && left(d) > 0);
+  else if (filter === 'owe') items = items.filter(d => d.dir === 'owe' && left(d) > 0);
+  else if (filter === 'done') items = items.filter(d => left(d) === 0);
+  else items = items.filter(d => left(d) > 0).concat(items.filter(d => left(d) === 0));
+
+  if (!items.length){
+    $('list').innerHTML = '<div class="empty">' + (!debts.length ? 'لسه مفيش ديون. ضيف أول دين من فوق.' : q ? 'مفيش نتايج للبحث.' : 'مفيش حاجة هنا.') + '</div>';
+    return;
+  }
+
+  $('list').innerHTML = items.map(d => {
+    const p = paid(d), l = left(d), pct = Math.min(100, d.amount ? p / d.amount * 100 : 0);
+    const done = l === 0;
+    const who = d.dir === 'owed' ? 'فاتورة' : 'استلفت منه';
+    return `
+    <div class="debt ${d.dir === 'owe' ? 'owe' : ''} ${done ? 'done' : ''}">
+      <div class="top">
+        <div>
+          <div class="name">${esc(d.name)}</div>
+          <div class="meta">${who} · ${esc(d.date)}${d.note ? ' · ' + esc(d.note) : ''}</div>
+        </div>
+        <div class="left"><b>${done ? 'اتسدد ✓' : fmt(l)}</b><small>من ${fmt(d.amount)}</small></div>
+      </div>
+      <div class="bar"><i style="width:${pct}%"></i></div>
+      <div class="acts">
+        ${done ? '' : `<button class="pay" data-a="pay" data-id="${d.id}">${d.dir === 'owed' ? 'استلمت دفعة' : 'سددت دفعة'}</button>`}
+        ${d.payments.length ? `<button data-a="hist" data-id="${d.id}">الدفعات (${d.payments.length})</button>` : ''}
+        <button data-a="stmt" data-id="${d.id}">كشف حساب</button>
+        <button class="del" data-a="del" data-id="${d.id}">حذف</button>
+      </div>
+      ${openPay === d.id ? `
+        <div class="payform">
+          <input type="number" id="payAmt" inputmode="decimal" min="0" step="any" value="${l}" aria-label="مبلغ الدفعة">
+          <button data-a="confirm" data-id="${d.id}">تأكيد</button>
+        </div>` : ''}
+      ${openHist === d.id ? `
+        <ul class="hist">${d.payments.map(x => `<li><span>${esc(x.date)}</span><span>${fmt(x.amount)}</span></li>`).join('')}</ul>` : ''}
+    </div>`;
+  }).join('');
+
+  if (openPay){ const el = $('payAmt'); if (el){ el.focus(); el.select(); } }
+}
+
+/* ---------- search + customers ---------- */
+let view = 'debts';
+let q = '';
+const norm = s => String(s || '').toLowerCase()
+  .replace(/[\u064B-\u0652\u0640]/g, '')
+  .replace(/[أإآٱ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه')
+  .replace(/\s+/g, ' ').trim();
+const key = norm;
+const matchDebt = d => !q || norm(d.name).includes(q) || norm(d.note).includes(q);
+const fmtN = n => Number(n).toLocaleString('en-US', {maximumFractionDigits:2});
+const balOf = list => +list.reduce((s,d) => s + (d.dir === 'owed' ? 1 : -1) * left(d), 0).toFixed(2);
+const balText = b => b > 0 ? fmt(b) + ' عليه' : b < 0 ? fmt(-b) + ' ليه' : 'صفر ✓';
+
+function renderCustomers(){
+  const groups = {};
+  debts.forEach(d => {
+    const k = key(d.name);
+    (groups[k] = groups[k] || {k, name:d.name, list:[]}).list.push(d);
+  });
+  let arr = Object.values(groups).map(g => ({...g, bal: balOf(g.list), open: g.list.filter(d => left(d) > 0).length}));
+  arr = arr.filter(g => !q || g.k.includes(q) || g.list.some(d => norm(d.note).includes(q)));
+  arr.sort((a,b) => (Math.abs(b.bal) > 0) - (Math.abs(a.bal) > 0) || Math.abs(b.bal) - Math.abs(a.bal));
+  if (!arr.length){
+    $('list').innerHTML = '<div class="empty">' + (!debts.length ? 'لسه مفيش عملاء. ضيف أول دين من فوق.' : 'مفيش نتايج للبحث.') + '</div>';
+    return;
+  }
+  $('list').innerHTML = arr.map(g => `
+    <div class="debt ${g.bal < 0 ? 'owe' : ''} ${g.bal === 0 ? 'done' : ''}">
+      <div class="top">
+        <div>
+          <div class="name">${esc(g.name)}</div>
+          <div class="meta">${g.list.length} فاتورة/دين · ${g.open} مفتوح</div>
+        </div>
+        <div class="left"><b class="rt">${balText(g.bal)}</b></div>
+      </div>
+      <div class="acts" style="margin-top:10px">
+        <button class="pay" data-a="stmtk" data-k="${esc(g.k)}">كشف حساب</button>
+        <button data-a="wak" data-k="${esc(g.k)}">واتساب</button>
+      </div>
+    </div>`).join('');
+}
+
+/* ---------- account statement ---------- */
+function statementData(k){
+  const list = debts.filter(d => key(d.name) === k);
+  if (!list.length) return null;
+  const rows = [];
+  const sums = {lent:0, borrowed:0, recvd:0, paidOut:0};
+  list.forEach(d => {
+    const mine = d.dir === 'owed';
+    rows.push({date:d.date, text: mine ? 'فاتورة' : 'دين (استلفت منه)', note:d.note, debit:d.amount, credit:0, delta:(mine ? 1 : -1) * d.amount});
+    if (mine) sums.lent += d.amount; else sums.borrowed += d.amount;
+    d.payments.forEach(p => {
+      rows.push({date:p.date, text: mine ? 'دفعة مستلمة' : 'دفعة مسددة', note:'', debit:0, credit:p.amount, delta:(mine ? -1 : 1) * p.amount});
+      if (mine) sums.recvd += p.amount; else sums.paidOut += p.amount;
+    });
+  });
+  rows.sort((a,b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+  let run = 0;
+  rows.forEach(r => { run += r.delta; r.bal = +run.toFixed(2); });
+  return {name:list[0].name, rows, sums, bal:+run.toFixed(2)};
+}
+
+function statementText(s){
+  const lines = ['كشف حساب: ' + s.name, 'التاريخ: ' + today(), '------------------'];
+  s.rows.forEach(r => {
+    const amt = r.debit || r.credit;
+    lines.push(r.date + ' - ' + r.text + (r.note ? ' (' + r.note + ')' : '') + ': ' + fmt(amt));
+  });
+  lines.push('------------------', 'الرصيد الحالي: ' + balText(s.bal));
+  return lines.join('\n');
+}
+
+let stKey = null;
+let stPdf = null;
+const canShareFiles = (() => {
+  try { return !!(navigator.canShare && navigator.canShare({files:[new File(['x'], 'a.pdf', {type:'application/pdf'})]})); }
+  catch(e){ return false; }
+})();
+
+/* phone + WhatsApp */
+function phoneOf(k){
+  const l = debts.filter(d => key(d.name) === k && d.phone);
+  return l.length ? l[l.length - 1].phone : '';
+}
+function setPhone(k, p){
+  debts.forEach(d => { if (key(d.name) === k) d.phone = p; });
+  save();
+}
+function waNumber(p){
+  const d = String(p || '').replace(/[٠-٩]/g, c => '٠١٢٣٤٥٦٧٨٩'.indexOf(c)).replace(/\D/g, '');
+  if (!d) return '';
+  const cc = String(countryCode || '').replace(/\D/g, '');
+  if (d.startsWith('00')) return d.slice(2);
+  if (d.startsWith('0')) return cc + d.slice(1);
+  if (cc && d.startsWith(cc) && d.length > 10) return d;
+  return cc + d;
+}
+function openWA(k){
+  const s = statementData(k); if (!s) return;
+  const url = 'https://wa.me/' + waNumber(phoneOf(k)) + '?text=' + encodeURIComponent(statementText(s));
+  const a = document.createElement('a');
+  a.href = url; a.target = '_blank'; a.rel = 'noopener';
+  document.body.appendChild(a); a.click(); a.remove();
+}
+
+/* statement content (shared by the dialog and the PDF sheet) */
+function statementInner(s){
+  const m = s.sums;
+  const sumRows = [
+    m.lent ? ['إجمالي الفواتير', fmt(m.lent)] : null,
+    m.borrowed ? ['إجمالي اللي استلفته منه', fmt(m.borrowed)] : null,
+    m.recvd ? ['اللي استلمته منه', fmt(m.recvd)] : null,
+    m.paidOut ? ['اللي سددته له', fmt(m.paidOut)] : null,
+    ['الرصيد الحالي', balText(s.bal)]
+  ].filter(Boolean);
+  return `
+    <h2>كشف حساب: ${esc(s.name)}</h2>
+    <div class="meta">بتاريخ ${today()} · العملة: ${esc(currency)}</div>
+    <div class="st-sum">${sumRows.map(r => `<div><span>${r[0]}</span><span>${r[1]}</span></div>`).join('')}</div>
+    <div class="tw"><table class="st">
+      <thead><tr><th>التاريخ</th><th>البيان</th><th>دين</th><th>سداد</th><th>الرصيد</th></tr></thead>
+      <tbody>${s.rows.map(r => `
+        <tr>
+          <td class="n">${esc(r.date)}</td>
+          <td>${r.text}${r.note ? '<small>' + esc(r.note) + '</small>' : ''}</td>
+          <td class="n">${r.debit ? fmtN(r.debit) : '—'}</td>
+          <td class="n">${r.credit ? fmtN(r.credit) : '—'}</td>
+          <td class="n">${fmtN(Math.abs(r.bal))}<small>${r.bal > 0 ? 'عليه' : r.bal < 0 ? 'ليه' : ''}</small></td>
+        </tr>`).join('')}
+      </tbody>
+    </table></div>`;
+}
+
+/* PDF: render a clean white sheet with the browser (keeps Arabic shaping), then place it on A4 pages */
+const pdfName = s => ('كشف حساب - ' + s.name + ' - ' + today()).replace(/[\\\/:*?"<>|]/g, '') + '.pdf';
+
+async function buildPdf(s){
+  const sheet = document.createElement('div');
+  sheet.className = 'sheet';
+  sheet.innerHTML = '<div class="st-in">' + statementInner(s) + '</div>';
+  document.body.appendChild(sheet);
+  try {
+    const canvas = await window.html2canvas(sheet, {scale:2, backgroundColor:'#ffffff'});
+    const pdf = new window.jspdf.jsPDF({unit:'mm', format:'a4'});
+    const margin = 10, cw = 210 - 2 * margin, ch = 297 - 2 * margin;
+    const pxPerMm = canvas.width / cw;
+    const sliceH = Math.floor(ch * pxPerMm);
+    let y = 0, page = 0;
+    while (y < canvas.height){
+      const h = Math.min(sliceH, canvas.height - y);
+      const c = document.createElement('canvas');
+      c.width = canvas.width; c.height = h;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, h);
+      ctx.drawImage(canvas, 0, y, canvas.width, h, 0, 0, canvas.width, h);
+      if (page > 0) pdf.addPage();
+      pdf.addImage(c.toDataURL('image/jpeg', 0.92), 'JPEG', margin, margin, cw, h / pxPerMm);
+      y += h; page++;
+    }
+    return pdf;
+  } finally { sheet.remove(); }
+}
+const makePdf = s => (window.html2canvas && window.jspdf && window.jspdf.jsPDF)
+  ? buildPdf(s).then(pdf => ({pdf, blob: pdf.output('blob'), name: pdfName(s)})).catch(() => null)
+  : Promise.resolve(null);
+
+function setMsg(m){ const el = $('stMsg'); if (el) el.textContent = m; }
+
+function openStatement(k){
+  const s = statementData(k); if (!s) return;
+  stKey = k;
+  $('stBody').innerHTML = statementInner(s) + `
+    <div class="phone">
+      <label for="stPhone">رقم واتساب العميل</label>
+      <input type="text" id="stPhone" inputmode="tel" dir="ltr" value="${esc(phoneOf(k))}" placeholder="مثال: 01012345678">
+    </div>
+    <div class="st-acts">
+      <button class="wa" data-s="wa">إرسال على واتساب</button>
+      <button class="main" data-s="pdf">حفظ PDF</button>
+      ${canShareFiles ? '<button data-s="sharepdf">مشاركة PDF</button>' : ''}
+      <button data-s="copy">نسخ كنص</button>
+      <button data-s="print">طباعة</button>
+      <button data-s="close">إغلاق</button>
+    </div>
+    <div class="st-msg" id="stMsg" role="status"></div>`;
+  stPdf = makePdf(s);
+  const dlg = $('stDlg');
+  if (!dlg.open) dlg.showModal();
+}
+
+function copyText(t){
+  const msg = m => { const el = $('stMsg'); if (el) el.textContent = m; };
+  const fallback = () => {
+    const ta = document.createElement('textarea');
+    ta.value = t; document.body.appendChild(ta); ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch(e){}
+    ta.remove();
+    msg(ok ? 'اتنسخ الكشف' : 'مقدرتش أنسخ، حدد النص يدوي أو استخدم الطباعة');
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(t).then(() => msg('اتنسخ الكشف'), fallback);
+  } else fallback();
+}
+
+$('stBody').addEventListener('input', e => {
+  if (e.target.id === 'stPhone') setPhone(stKey, e.target.value.trim());
+});
+$('stBody').addEventListener('click', async e => {
+  const b = e.target.closest('button[data-s]'); if (!b) return;
+  const a = b.dataset.s;
+  if (a === 'close') $('stDlg').close();
+  else if (a === 'print') window.print();
+  else if (a === 'wa') openWA(stKey);
+  else if (a === 'copy'){ const s = statementData(stKey); if (s) copyText(statementText(s)); }
+  else if (a === 'pdf' || a === 'sharepdf'){
+    setMsg('بجهز الملف...');
+    let r = await stPdf;
+    if (!r){ stPdf = makePdf(statementData(stKey)); r = await stPdf; }
+    if (!r){ setMsg('معرفتش أجهز الـ PDF. استخدم زرار الطباعة واختار "حفظ كـ PDF".'); return; }
+    if (a === 'pdf'){ r.pdf.save(r.name); setMsg('اتحفظ ملف الـ PDF'); }
+    else {
+      try {
+        await navigator.share({files:[new File([r.blob], r.name, {type:'application/pdf'})], title:r.name});
+        setMsg('');
+      } catch(err){ setMsg(err && err.name === 'AbortError' ? '' : 'المشاركة ماتمتش، جرب زرار حفظ PDF'); }
+    }
+  }
+});
+$('stDlg').addEventListener('click', e => { if (e.target === $('stDlg')) $('stDlg').close(); });
+
+$('add').addEventListener('click', () => {
+  const name = $('name').value.trim();
+  const amount = parseFloat($('amount').value);
+  if (!name){ toast('اكتب الاسم'); $('name').focus(); return; }
+  if (!(amount > 0)){ toast('اكتب مبلغ أكبر من صفر'); $('amount').focus(); return; }
+  const dir = document.querySelector('input[name=dir]:checked').value;
+  const phoneIn = $('phone').value.trim();
+  debts.push({
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
+    name, amount, dir,
+    note: $('note').value.trim(),
+    date: $('date').value || today(),
+    phone: phoneIn || phoneOf(key(name)),
+    payments: []
+  });
+  if (phoneIn) setPhone(key(name), phoneIn);
+  $('name').value = ''; $('amount').value = ''; $('note').value = ''; $('phone').value = ''; $('date').value = today();
+  save(); render(); toast('اتضاف الدين');
+});
+
+$('list').addEventListener('click', e => {
+  const b = e.target.closest('button[data-a]'); if (!b) return;
+  if (b.dataset.a === 'stmtk'){ openStatement(b.dataset.k); return; }
+  if (b.dataset.a === 'wak'){ openWA(b.dataset.k); return; }
+  const d = debts.find(x => x.id === b.dataset.id); if (!d) return;
+  const a = b.dataset.a;
+  if (a === 'stmt'){ openStatement(key(d.name)); }
+  else if (a === 'pay'){ openPay = openPay === d.id ? null : d.id; render(); }
+  else if (a === 'hist'){ openHist = openHist === d.id ? null : d.id; render(); }
+  else if (a === 'confirm'){
+    const v = parseFloat($('payAmt').value);
+    if (!(v > 0)){ toast('اكتب مبلغ صحيح'); return; }
+    const amt = Math.min(v, left(d));
+    d.payments.push({amount: amt, date: today()});
+    openPay = null; save(); render();
+    toast(left(d) === 0 ? 'الدين اتسدد بالكامل' : 'اتسجلت الدفعة');
+  }
+  else if (a === 'del'){
+    if (b.dataset.sure){ debts = debts.filter(x => x.id !== d.id); save(); render(); toast('اتحذف'); }
+    else { b.dataset.sure = '1'; b.textContent = 'متأكد؟ اضغط تاني'; setTimeout(() => { if (b.isConnected){ delete b.dataset.sure; b.textContent = 'حذف'; } }, 2500); }
+  }
+});
+
+$('list').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.target.id === 'payAmt'){
+    e.target.closest('.debt').querySelector('[data-a=confirm]').click();
+  }
+});
+
+document.querySelectorAll('#tabs .tab').forEach(t => t.addEventListener('click', () => {
+  filter = t.dataset.f;
+  document.querySelectorAll('#tabs .tab').forEach(x => x.setAttribute('aria-pressed', x === t));
+  render();
+}));
+
+document.querySelectorAll('#views .tab').forEach(t => t.addEventListener('click', () => {
+  view = t.dataset.v;
+  openPay = null;
+  document.querySelectorAll('#views .tab').forEach(x => x.setAttribute('aria-pressed', x === t));
+  render();
+}));
+
+$('q').addEventListener('input', e => { q = norm(e.target.value); openPay = null; render(); });
+
+$('cc').addEventListener('input', e => { countryCode = e.target.value.replace(/\D/g,'') || '20'; save(); });
+$('cur').addEventListener('input', e => { currency = e.target.value.trim() || 'ج.م'; save(); render(); });
+
+$('date').value = today();
+/* ---------- backup / restore ---------- */
+$('bkExport').addEventListener('click', () => {
+  const blob = new Blob([JSON.stringify({debts, currency, countryCode}, null, 1)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'debts-backup-' + today() + '.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  toast('اتحفظت النسخة الاحتياطية');
+});
+$('bkImport').addEventListener('click', () => $('bkFile').click());
+$('bkFile').addEventListener('change', e => {
+  const f = e.target.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try {
+      const o = JSON.parse(r.result);
+      if (!Array.isArray(o.debts)) throw new Error('bad');
+      if (!confirm('البيانات الحالية هتتستبدل بالنسخة دي. متأكد؟')) return;
+      debts = o.debts; currency = o.currency || currency; countryCode = o.countryCode || countryCode;
+      $('cur').value = currency; $('cc').value = countryCode;
+      save(); render(); toast('اتسترجعت النسخة');
+    } catch(err){ toast('الملف ده مش نسخة احتياطية صحيحة'); }
+  };
+  r.readAsText(f);
+  e.target.value = '';
+});
+
+/* ---------- install as app: offline cache + keep data from being cleared ---------- */
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')){
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+if (navigator.storage && navigator.storage.persist){ navigator.storage.persist().catch(() => {}); }
+
+load();
+</script>
+</body>
+</html>
